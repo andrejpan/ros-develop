@@ -1,54 +1,68 @@
-FROM ubuntu:20.04
 
-# Remove geographic interactive questions
-ARG DEBIAN_FRONTEND=noninteractive
+FROM osrf/ros:iron-desktop-full
+# Set the default shell of an image.
+SHELL ["/bin/bash", "-c"]
 
-# Update packages
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y \
-    curl \
-    gnupg2 \
-    lsb-release
+# Install necessary tools
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    bash-completion \
+    cmake-curses-gui \
+    cron \
+    htop \
+    gdb \
+    git \
+    iproute2 \
+    iputils-ping \
+    libxcb-cursor0 \
+    python3-pip \
+    ros-iron-nav2-bringup \
+    ros-iron-navigation2 \
+    ros-iron-turtlebot3* \
+    # killall
+    psmisc \
+    vim
 
-# Set up sources for ROS 2
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add -
-RUN sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
+# Jazzy image already includes ubuntu user
+ARG USERNAME=ubuntu
+# Check uid and gid on local machine!
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+# Name of ROS environment in home directory
+ARG ROS_ENV=ros2_ws
 
-# Install ROS 2 Foxy
-RUN apt-get update && apt-get install --no-install-recommends -y \
-      ros-foxy-ros-base \
-      python3-argcomplete \
-      ros-dev-tools\
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# create custom user
+RUN groupadd --gid $USER_GID $USERNAME \
+  && useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME \
+  && mkdir /home/$USERNAME/.config && chown $USER_UID:$USER_GID /home/$USERNAME/.config
 
-# Create a non-root user that matches the host user
-ARG USER_ID=1001
-ARG GROUP_ID=1001
-RUN addgroup --gid $GROUP_ID ros && \
-    adduser --gecos "ROS User" --uid $USER_ID --gid $GROUP_ID --disabled-password ros && \
-    echo "ros ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ros && \
-    chmod 0440 /etc/sudoers.d/ros
+# Set up sudo
+RUN apt-get update \
+  && apt-get install -y sudo \
+  && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME\
+  && chmod 0440 /etc/sudoers.d/$USERNAME
 
-# Set environment variables
-ENV HOME=/home/ros
-ENV USERNAME=ros
-ENV USERID=$USER_ID
-ENV GROUPID=$GROUP_ID
+USER ${USERNAME}
+# Create a workspace
+RUN mkdir -p /home/$USERNAME/${ROS_ENV}/src
 
-# Switch to the new user
-USER ros
+# Install dependencies
+WORKDIR /home/$USERNAME/${ROS_ENV}
 
-# Set up the ROS 2 environment
-RUN echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
+# Set the entrypoint
+COPY scripts/entrypoint.sh .
+COPY scripts/bashrc /home/${USERNAME}/bashrc
+RUN cat /home/${USERNAME}/bashrc >> /home/${USERNAME}/.bashrc \
+  && rm /home/${USERNAME}/bashrc
 
+USER root
+RUN apt-get update \
+  && rosdep install --from-paths src --ignore-src --rosdistro iron -r -y
+
+# Run upgrade command if there are some outdated packages
+RUN apt-get update \
+  && apt-get -y upgrade
+
+USER ${USERNAME}
+ENTRYPOINT ["/bin/bash", "./entrypoint.sh"]
 CMD ["bash"]
-
-###################################################################################################
-
-# Build image
-# docker build -t ubuntu2004-ros-foxy .
-
-# Run image
-# docker run -it --rm ubuntu2004-ros-foxy
-# docker run -it --rm --user $(id -u):$(id -g) ubuntu2004-ros-foxy

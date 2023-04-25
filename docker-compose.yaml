@@ -1,0 +1,27 @@
+
+services:
+  # Base image containing dependencies.
+  iron-develop:
+    user: "1000"
+    image: iron-develop-full:latest
+    # Interactive shell
+    stdin_open: true
+    tty: true
+    # Networking for ROS 2
+    network_mode: host
+    ipc: host
+    # Needed to display graphical applications
+    environment:
+      # Allows graphical programs in the container.
+      - DISPLAY=${DISPLAY}
+      - QT_GRAPHICSSYSTEM=native
+    volumes:
+      # Allows graphical programs in the container.
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Sync time with the host machine
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    container_name: iron-develop-full
+    # Restarts the service unless it has been explicitly stopped.
+    # restart: unless-stopped
+    command: /bin/sh -c "while sleep 1000; do :; done"
