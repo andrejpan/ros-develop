@@ -21,6 +21,7 @@ services:
       # Sync time with the host machine
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+      - ./src:/home/ubuntu/ros2_ws/src
     container_name: iron-develop-full
     # Restarts the service unless it has been explicitly stopped.
     # restart: unless-stopped
